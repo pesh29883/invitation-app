@@ -1,0 +1,4 @@
+/* Intentionally minimal. All styling lives in App.css. */
+html {
+  -webkit-text-size-adjust: 100%;
+}
