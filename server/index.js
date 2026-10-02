@@ -28,7 +28,7 @@ const app = express();
 app.use(cors({ origin: CLIENT_URL }));
 app.use(express.json());
 
-const pool = new pg.Pool({ connectionString: DATABASE_URL });
+const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 5 });
 
 const mailer = SMTP_HOST
   ? nodemailer.createTransport({
@@ -230,14 +230,20 @@ app.post("/api/public/:slug/rsvp", async (req, res) => {
       [invitation.id, guestName, attending]
     );
 
-    // Reply is saved. A mail failure shouldn't make the guest's reply fail.
-    sendRsvpEmail({
-      to: invitation.host_email,
-      hostName: invitation.host_name,
-      invitationTitle: invitation.title,
-      guestName,
-      attending,
-    }).catch((err) => console.error("Email failed:", err.message));
+    // The reply is saved. A mail failure shouldn't make the guest's reply fail.
+    // We wait for the email here because a serverless function can be paused
+    // as soon as the response is sent, which would cut the email off.
+    try {
+      await sendRsvpEmail({
+        to: invitation.host_email,
+        hostName: invitation.host_name,
+        invitationTitle: invitation.title,
+        guestName,
+        attending,
+      });
+    } catch (err) {
+      console.error("Email failed:", err.message);
+    }
 
     res.status(201).json({ ok: true });
   } catch (err) {
@@ -246,4 +252,11 @@ app.post("/api/public/:slug/rsvp", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
+app.get("/api/health", (req, res) => res.json({ ok: true }));
+
+// On Vercel the platform runs the app for us, so we only listen when running locally.
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`));
+}
+
+export default app;
