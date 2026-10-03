@@ -41,6 +41,7 @@ export default function Profile() {
   const [invitations, setInvitations] = useState(null);
   const [statsError, setStatsError] = useState(false);
   const [tab, setTab] = useState("all");
+  const [invitationFilter, setInvitationFilter] = useState("all");
 
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -115,13 +116,24 @@ export default function Profile() {
   const loading = invitations === null && !statsError;
   const list = invitations ?? [];
   const replies = list
-    .flatMap((inv) => inv.rsvps.map((r) => ({ ...r, title: inv.title })))
+    .flatMap((inv) => inv.rsvps.map((r) => ({ ...r, title: inv.title, invitationId: inv.id })))
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   const coming = replies.filter((r) => r.attending);
   const declined = replies.filter((r) => !r.attending);
   const pct = (n) => (replies.length ? Math.round((n / replies.length) * 100) : 0);
   const openCount = list.filter((i) => i.is_open).length;
-  const shown = (tab === "yes" ? coming : tab === "no" ? declined : replies).slice(0, 8);
+  // The list can be narrowed to one invitation; the stat cards above always cover all of them.
+  const inScope =
+    invitationFilter === "all"
+      ? replies
+      : replies.filter((r) => String(r.invitationId) === invitationFilter);
+  const scoped =
+    tab === "yes"
+      ? inScope.filter((r) => r.attending)
+      : tab === "no"
+        ? inScope.filter((r) => !r.attending)
+        : inScope;
+  const shown = scoped.slice(0, 8);
   const dash = (value) => (loading || statsError ? "-" : value);
 
   return (
@@ -187,6 +199,23 @@ export default function Profile() {
           </div>
 
           <section className="card list-card">
+            <div className="list-head">
+              <h2>Recent replies</h2>
+              <select
+                className="list-select"
+                aria-label="Show replies from"
+                value={invitationFilter}
+                onChange={(e) => setInvitationFilter(e.target.value)}
+              >
+                <option value="all">All invitations</option>
+                {list.map((inv) => (
+                  <option key={inv.id} value={String(inv.id)}>
+                    {inv.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="tabs-line">
               {TABS.map(([value, label]) => (
                 <button
@@ -207,7 +236,7 @@ export default function Profile() {
                   ? "Loading your replies..."
                   : replies.length === 0
                     ? "No replies yet. Share an invitation link to get started."
-                    : "No replies in this tab."}
+                    : "No replies match this view."}
               </p>
             ) : (
               <ul className="rows">
@@ -230,6 +259,12 @@ export default function Profile() {
                   );
                 })}
               </ul>
+            )}
+
+            {scoped.length > shown.length && (
+              <p className="muted small-text">
+                Showing the {shown.length} most recent of {scoped.length} replies.
+              </p>
             )}
           </section>
         </div>

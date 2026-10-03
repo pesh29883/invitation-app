@@ -974,6 +974,7 @@ summary:focus-visible {
   gap: 1.5rem;
   margin-bottom: 0.25rem;
   overflow-x: auto;
+  overflow-y: hidden;
   border-bottom: 1px solid var(--line);
 }
 
@@ -1002,7 +1003,7 @@ summary:focus-visible {
   content: "";
   position: absolute;
   right: 0;
-  bottom: -1px;
+  bottom: 0;
   left: 0;
   height: 2px;
   background: var(--accent);
@@ -1158,4 +1159,30 @@ summary:focus-visible {
 
 .profile-grid {
   margin-top: 1rem;
+}
+
+/* ---- Replies list header ---- */
+.list-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.list-select {
+  max-width: 100%;
+  padding: 0.45rem 0.85rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.925rem;
+}
+
+.list-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
