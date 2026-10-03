@@ -29,6 +29,7 @@ function Layout() {
     <>
       <header className="topbar">
         <Link to="/" className="brand">
+          <img src="/logo.png" alt="" className="brand-logo" />
           Invitations
         </Link>
         {user && (

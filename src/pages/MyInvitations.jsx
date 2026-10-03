@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, formatDateTime } from "../api";
+import { api } from "../api";
 import { useAuth } from "../auth.jsx";
+import StatCard, { dailyCounts } from "../StatCard.jsx";
+
+const TABS = [
+  ["all", "All"],
+  ["open", "Open"],
+  ["closed", "Closed"],
+];
 
 function replySummary(rsvps) {
   if (rsvps.length === 0) return "No replies yet.";
@@ -16,6 +23,7 @@ export default function MyInvitations() {
   const [busyId, setBusyId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
+  const [tab, setTab] = useState("all");
 
   useEffect(() => {
     api("/api/invitations", { auth: true })
@@ -70,6 +78,15 @@ export default function MyInvitations() {
     }
   }
 
+  const loading = invitations === null && !error;
+  const list = invitations ?? [];
+  const open = list.filter((i) => i.is_open);
+  const closed = list.filter((i) => !i.is_open);
+  const repliesOf = (items) => items.flatMap((i) => i.rsvps);
+  const pct = (n) => (list.length ? Math.round((n / list.length) * 100) : 0);
+  const shown = tab === "open" ? open : tab === "closed" ? closed : list;
+  const counts = { all: list.length, open: open.length, closed: closed.length };
+
   return (
     <>
       <div className="page-head">
@@ -88,80 +105,128 @@ export default function MyInvitations() {
         </p>
       )}
 
-      {!invitations && !error && <p className="muted">Loading your invitations...</p>}
-
-      {invitations && invitations.length === 0 && (
-        <div className="card">
-          <h2>No invitations yet</h2>
-          <p className="muted">Create one and share its link to start collecting replies.</p>
-        </div>
-      )}
-
-      <div className="manage-list">
-        {invitations?.map((inv) => (
-          <article className="card manage-item" key={inv.id}>
-            <div className="manage-head">
-              <div>
-                <h2>{inv.title}</h2>
-                <p className="meta">
-                  {inv.kind} on {formatDateTime(inv.event_date)}
-                </p>
-              </div>
-              <span className={`badge ${inv.is_open ? "yes" : "no"}`}>
-                {inv.is_open ? "Open" : "Closed"}
-              </span>
-            </div>
-
-            <p className="muted">{replySummary(inv.rsvps)}</p>
-
-            <div className="row-actions">
-              <button type="button" className="button small" onClick={() => copyLink(inv)}>
-                {copiedId === inv.id ? "Copied" : "Copy link"}
-              </button>
-              <Link className="button small secondary" to={`/invitations/${inv.id}/edit`}>
-                Edit
-              </Link>
-              <button
-                type="button"
-                className="button small secondary"
-                disabled={busyId === inv.id}
-                onClick={() => toggleOpen(inv)}
-              >
-                {inv.is_open ? "Close invitation" : "Reopen invitation"}
-              </button>
-
-              {confirmId === inv.id ? (
-                <span className="confirm">
-                  <span className="muted">Delete this invitation and its replies?</span>
-                  <button
-                    type="button"
-                    className="button small danger"
-                    disabled={busyId === inv.id}
-                    onClick={() => remove(inv)}
-                  >
-                    Yes, delete
-                  </button>
-                  <button
-                    type="button"
-                    className="link-button"
-                    onClick={() => setConfirmId(null)}
-                  >
-                    Cancel
-                  </button>
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  className="button small secondary danger-text"
-                  onClick={() => setConfirmId(inv.id)}
-                >
-                  Delete
-                </button>
-              )}
-            </div>
-          </article>
-        ))}
+      <div className="stat-row" style={{ marginBottom: "1rem" }}>
+        <StatCard
+          label="All invitations"
+          value={loading ? "-" : list.length}
+          chip={`${repliesOf(list).length} replies in total`}
+          series={dailyCounts(repliesOf(list))}
+        />
+        <StatCard
+          tone="good"
+          label="Open"
+          value={loading ? "-" : open.length}
+          chip={`${pct(open.length)}% of your invitations`}
+          series={dailyCounts(repliesOf(open))}
+        />
+        <StatCard
+          tone="danger"
+          label="Closed"
+          value={loading ? "-" : closed.length}
+          chip={`${pct(closed.length)}% of your invitations`}
+          series={dailyCounts(repliesOf(closed))}
+        />
       </div>
+
+      <section className="card list-card">
+        <div className="tabs-line">
+          {TABS.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className="tab-line"
+              aria-pressed={tab === value}
+              onClick={() => setTab(value)}
+            >
+              {label} ({counts[value]})
+            </button>
+          ))}
+        </div>
+
+        {loading && <p className="muted" style={{ marginTop: "1rem" }}>Loading your invitations...</p>}
+
+        {invitations && shown.length === 0 && (
+          <p className="muted" style={{ marginTop: "1rem" }}>
+            {list.length === 0
+              ? "No invitations yet. Create one and share its link to start collecting replies."
+              : "No invitations in this tab."}
+          </p>
+        )}
+
+        <ul className="rows">
+          {shown.map((inv) => {
+            const date = new Date(inv.event_date);
+            return (
+              <li className="invite-row" key={inv.id}>
+                <div className="row-date">
+                  <strong>{date.getDate()}</strong>
+                  <span>{date.toLocaleDateString("en-US", { month: "short" })}</span>
+                </div>
+
+                <div className="row-main">
+                  <h2>{inv.title}</h2>
+                  <p title={inv.location}>
+                    {inv.kind} at{" "}
+                    {date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+                    {inv.location ? `, ${inv.location}` : ""}
+                  </p>
+                  <p>{replySummary(inv.rsvps)}</p>
+                </div>
+
+                <span className={`badge ${inv.is_open ? "yes" : "no"}`}>
+                  {inv.is_open ? "Open" : "Closed"}
+                </span>
+
+                <div className="row-actions">
+                  <button type="button" className="button small" onClick={() => copyLink(inv)}>
+                    {copiedId === inv.id ? "Copied" : "Copy link"}
+                  </button>
+                  <Link className="button small secondary" to={`/invitations/${inv.id}/edit`}>
+                    Edit
+                  </Link>
+                  <button
+                    type="button"
+                    className="button small secondary"
+                    disabled={busyId === inv.id}
+                    onClick={() => toggleOpen(inv)}
+                  >
+                    {inv.is_open ? "Close invitation" : "Reopen invitation"}
+                  </button>
+
+                  {confirmId === inv.id ? (
+                    <span className="confirm">
+                      <span className="muted">Delete this invitation and its replies?</span>
+                      <button
+                        type="button"
+                        className="button small danger"
+                        disabled={busyId === inv.id}
+                        onClick={() => remove(inv)}
+                      >
+                        Yes, delete
+                      </button>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => setConfirmId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="button small secondary danger-text"
+                      onClick={() => setConfirmId(inv.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
     </>
   );
 }

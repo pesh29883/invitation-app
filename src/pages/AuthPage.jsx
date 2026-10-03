@@ -35,6 +35,7 @@ export default function AuthPage({ mode }) {
 
   return (
     <section className="card narrow">
+      <img src="/logo.png" alt="" className="auth-logo" />
       <h1>{isRegister ? "Create your account" : "Log in"}</h1>
 
       <form className="stack" onSubmit={handleSubmit} noValidate>
