@@ -1,10 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../api";
+import { useAuth } from "../auth.jsx";
 
 const KINDS = ["Birthday", "Wedding", "Baby shower", "Graduation", "Party", "Other"];
+
+const blankForm = {
+  kind: "Birthday",
+  customKind: "",
+  title: "",
+  eventDate: "",
+  location: "",
+  message: "",
+  latitude: null,
+  longitude: null,
+};
 
 const pinIcon = L.divIcon({
   className: "map-pin",
@@ -12,6 +24,30 @@ const pinIcon = L.divIcon({
   iconSize: [28, 28],
   iconAnchor: [14, 34],
 });
+
+// Turns a stored timestamp into the "YYYY-MM-DDTHH:mm" text a datetime-local input expects.
+function toLocalInput(iso) {
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+function formFromInvitation(inv) {
+  const known = KINDS.includes(inv.kind) && inv.kind !== "Other";
+  return {
+    kind: known ? inv.kind : "Other",
+    customKind: known ? "" : inv.kind,
+    title: inv.title,
+    eventDate: toLocalInput(inv.event_date),
+    location: inv.location,
+    message: inv.message,
+    latitude: inv.latitude ?? null,
+    longitude: inv.longitude ?? null,
+  };
+}
 
 async function reverseGeocode(lat, lng) {
   try {
@@ -26,11 +62,12 @@ async function reverseGeocode(lat, lng) {
   }
 }
 
-function LocationPicker({ hasPin, onPick }) {
+function LocationPicker({ initial, hasPin, onPick }) {
   const mapEl = useRef(null);
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const onPickRef = useRef(onPick);
+  const initialRef = useRef(initial);
   const lookupRef = useRef(0);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
@@ -77,6 +114,12 @@ function LocationPicker({ hasPin, onPick }) {
     }).addTo(map);
     map.on("click", (e) => spotChosen(e.latlng.lat, e.latlng.lng, false));
     mapRef.current = map;
+
+    // When editing, start with the invitation's saved pin already on the map.
+    if (initialRef.current) {
+      showPin(initialRef.current.lat, initialRef.current.lng, true);
+    }
+
     return () => {
       map.remove();
       mapRef.current = null;
@@ -169,19 +212,35 @@ function LocationPicker({ hasPin, onPick }) {
 }
 
 export default function CreateInvitation() {
+  const { id } = useParams();
+  const editing = Boolean(id);
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    kind: "Birthday",
-    customKind: "",
-    title: "",
-    eventDate: "",
-    location: "",
-    message: "",
-    latitude: null,
-    longitude: null,
-  });
+  const { logout } = useAuth();
+
+  const [form, setForm] = useState(blankForm);
+  const [ready, setReady] = useState(!editing);
+  const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // When editing, load the invitation first so the form and map start with its saved values.
+  useEffect(() => {
+    if (!editing) return;
+    api("/api/invitations", { auth: true })
+      .then((list) => {
+        const inv = list.find((i) => String(i.id) === id);
+        if (!inv) {
+          setLoadError("We couldn't find that invitation.");
+          return;
+        }
+        setForm(formFromInvitation(inv));
+        setReady(true);
+      })
+      .catch((err) => {
+        if (err.status === 401) logout();
+        else setLoadError(err.message);
+      });
+  }, [editing, id, logout]);
 
   const update = (field) => (e) =>
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -200,8 +259,8 @@ export default function CreateInvitation() {
     setError("");
     setBusy(true);
     try {
-      await api("/api/invitations", {
-        method: "POST",
+      await api(editing ? `/api/invitations/${id}` : "/api/invitations", {
+        method: editing ? "PUT" : "POST",
         auth: true,
         body: {
           kind: form.kind === "Other" ? form.customKind.trim() : form.kind,
@@ -213,7 +272,7 @@ export default function CreateInvitation() {
           eventDate: form.eventDate ? new Date(form.eventDate).toISOString() : "",
         },
       });
-      navigate("/dashboard");
+      navigate(editing ? "/invitations" : "/dashboard");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -221,9 +280,24 @@ export default function CreateInvitation() {
     }
   }
 
+  const backTo = editing ? "/invitations" : "/dashboard";
+
+  if (loadError) {
+    return (
+      <section className="card form-card">
+        <h2>{loadError}</h2>
+        <p style={{ marginTop: "1rem" }}>
+          <Link to="/invitations">Back to your invitations</Link>
+        </p>
+      </section>
+    );
+  }
+
+  if (!ready) return <p className="muted">Loading your invitation...</p>;
+
   return (
     <section className="card form-card">
-      <h1>Create an invitation</h1>
+      <h1>{editing ? "Edit invitation" : "Create an invitation"}</h1>
 
       <form className="stack" onSubmit={handleSubmit} noValidate>
         <label className="field">
@@ -256,7 +330,15 @@ export default function CreateInvitation() {
           />
         </label>
 
-        <LocationPicker hasPin={form.latitude !== null} onPick={handlePick} />
+        <LocationPicker
+          initial={
+            editing && form.latitude !== null
+              ? { lat: form.latitude, lng: form.longitude }
+              : null
+          }
+          hasPin={form.latitude !== null}
+          onPick={handlePick}
+        />
 
         <label className="field">
           <span>Location name</span>
@@ -279,9 +361,9 @@ export default function CreateInvitation() {
 
         <div className="actions">
           <button type="submit" className="button" disabled={busy}>
-            Create invitation
+            {editing ? "Save changes" : "Create invitation"}
           </button>
-          <Link to="/dashboard">Cancel</Link>
+          <Link to={backTo}>Cancel</Link>
         </div>
       </form>
     </section>

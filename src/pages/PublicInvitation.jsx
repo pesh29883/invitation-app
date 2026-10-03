@@ -103,7 +103,14 @@ export default function PublicInvitation() {
       )}
 
       <section className="card invite-reply" aria-labelledby="reply-heading">
-        {sent ? (
+        {invitation.is_open === false ? (
+          <div role="status">
+            <h2 id="reply-heading">Replies are closed</h2>
+            <p className="muted">
+              {invitation.host_name} isn't taking replies for this invitation anymore.
+            </p>
+          </div>
+        ) : sent ? (
           <div role="status">
             <h2 id="reply-heading">
               {sent.attending
