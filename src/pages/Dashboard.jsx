@@ -147,6 +147,13 @@ export default function Dashboard() {
   const mapQuery = hasPin
     ? `${selected.latitude},${selected.longitude}`
     : (selected?.location ?? "");
+  // Show the first two parts as the place name; the rest of the address goes underneath, smaller.
+  const placeParts = (selected?.location ?? "")
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const placeName = placeParts.slice(0, 2).join(", ") || "Pinned location";
+  const placeDetail = placeParts.slice(2).join(", ");
   const coming = rsvps.filter((r) => r.attending).length;
   const declined = rsvps.length - coming;
   const comingPct = rsvps.length ? Math.round((coming / rsvps.length) * 100) : 0;
@@ -354,9 +361,17 @@ export default function Dashboard() {
               <section className="card map-card">
                 {mapQuery ? (
                   <>
-                    <div className="map-label">
-                      <span>{selected.location || "Pinned location"}</span>
+                    <div className="map-head">
+                      <div className="map-place">
+                        <p className="map-place-name">{placeName}</p>
+                        {placeDetail && (
+                          <p className="map-place-detail" title={selected.location}>
+                            {placeDetail}
+                          </p>
+                        )}
+                      </div>
                       <a
+                        className="map-link"
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`}
                         target="_blank"
                         rel="noreferrer"
