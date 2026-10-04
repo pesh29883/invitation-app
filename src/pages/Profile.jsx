@@ -53,7 +53,7 @@ function untilText(date) {
   return "starting soon";
 }
 
-export default function Profile() {
+export default function Profile({ themePref, onThemePref }) {
   const { user, updateUser, logout } = useAuth();
 
   const [invitations, setInvitations] = useState(null);
@@ -403,6 +403,32 @@ export default function Profile() {
               Change password
             </button>
           </form>
+        </section>
+
+        <section className="card">
+          <h2>Appearance</h2>
+          <fieldset className="field">
+            <legend>Theme</legend>
+            <div className="choices">
+              {[
+                ["light", "Light"],
+                ["dark", "Dark"],
+                ["system", "Match my device"],
+              ].map(([value, label]) => (
+                <label className="choice" key={value}>
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={value}
+                    checked={themePref === value}
+                    onChange={() => onThemePref(value)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+            <span className="hint">The moon and sun button in the top bar switches it quickly too.</span>
+          </fieldset>
         </section>
       </div>
     </>

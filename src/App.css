@@ -821,7 +821,7 @@ summary:focus-visible {
 
 .button.danger {
   background: var(--danger);
-  color: #ffffff;
+  color: var(--on-danger);
 }
 
 .button.danger:hover {
@@ -1262,7 +1262,7 @@ summary:focus-visible {
   width: 6.25rem;
   height: 6.25rem;
   margin: -3.1rem auto 0.9rem;
-  background: linear-gradient(135deg, var(--accent-soft), #ece9f7);
+  background: linear-gradient(135deg, var(--accent-soft), var(--lav-soft));
   border: 4px solid var(--surface);
   box-shadow: 0 8px 20px rgba(27, 42, 58, 0.14);
   font-size: 2rem;
@@ -1273,8 +1273,8 @@ summary:focus-visible {
   gap: 0.35rem;
   align-items: center;
   padding: 0.15rem 0.85rem;
-  background: #ece9f7;
-  color: #52479c;
+  background: var(--lav-soft);
+  color: var(--lav-ink);
   font-weight: 600;
 }
 
@@ -1411,7 +1411,7 @@ summary:focus-visible {
 }
 
 .stat-icon svg {
-  color: #ffffff;
+  color: var(--on-accent);
 }
 
 .stat-bars span {
@@ -1486,4 +1486,80 @@ summary:focus-visible {
   flex: none;
   font-size: 0.9rem;
   white-space: nowrap;
+}
+
+/* ---- Theme: extra tokens, toggle button, and dark mode ---- */
+:root {
+  --lav-soft: #ece9f7;
+  --lav-ink: #52479c;
+  --on-danger: #ffffff;
+}
+
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.theme-toggle:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0e1a20;
+  --surface: #15252d;
+  --surface-2: #1b303a;
+  --ink: #e6eff2;
+  --muted: #94a9b2;
+  --line: #243b45;
+  --line-strong: #345360;
+  --accent: #6fc0c7;
+  --accent-hover: #8dd2d8;
+  --accent-soft: #1c3a40;
+  --on-accent: #0b181c;
+  --danger: #ff8d80;
+  --danger-soft: #3a2224;
+  --on-danger: #1c0d0d;
+  --good: #6dd49b;
+  --good-soft: #17352a;
+  --blue: #6ea8f2;
+  --lav-soft: #2a2a4a;
+  --lav-ink: #c9c2f7;
+  --hero-bg: #2f6a70;
+  --hero-ink: #ffffff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* Google's embedded map and the pin-picker tiles are light, so tone them down in dark mode. */
+:root[data-theme="dark"] .map-frame,
+:root[data-theme="dark"] .picker-map .leaflet-tile-pane {
+  filter: invert(0.92) hue-rotate(180deg) brightness(0.95) contrast(0.9);
+}
+
+:root[data-theme="dark"] .stat-card:hover {
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
 }
