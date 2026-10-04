@@ -33,10 +33,21 @@ function lastSevenDays(rsvps) {
   return days;
 }
 
-function countKinds(invitations) {
-  const counts = {};
-  for (const inv of invitations) counts[inv.kind] = (counts[inv.kind] || 0) + 1;
-  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+// For each kind of invitation, how many replies said coming vs can't make it.
+function repliesByKind(invitations) {
+  const stats = {};
+  for (const inv of invitations) {
+    if (!stats[inv.kind]) stats[inv.kind] = { invitations: 0, coming: 0, declined: 0 };
+    stats[inv.kind].invitations += 1;
+    for (const r of inv.rsvps) {
+      if (r.attending) stats[inv.kind].coming += 1;
+      else stats[inv.kind].declined += 1;
+    }
+  }
+  const replies = (k) => stats[k].coming + stats[k].declined;
+  return Object.entries(stats).sort(
+    (a, b) => replies(b[0]) - replies(a[0]) || b[1].invitations - a[1].invitations
+  );
 }
 
 export default function Dashboard() {
@@ -100,6 +111,37 @@ export default function Dashboard() {
     }
   }
 
+  async function toggleOpen() {
+    try {
+      const result = await api(`/api/invitations/${selected.id}`, {
+        method: "PATCH",
+        auth: true,
+        body: { isOpen: !selected.is_open },
+      });
+      setInvitations((list) =>
+        list.map((inv) =>
+          inv.id === result.id ? { ...inv, is_open: result.is_open } : inv
+        )
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function removeInvitation() {
+    const ok = window.confirm(
+      `Delete "${selected.title}" and all of its replies? This can't be undone.`
+    );
+    if (!ok) return;
+    try {
+      await api(`/api/invitations/${selected.id}`, { method: "DELETE", auth: true });
+      setInvitations((list) => list.filter((inv) => inv.id !== selected.id));
+      setSelectedId(null);
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   const rsvps = selected?.rsvps ?? [];
   const hasPin = selected?.latitude != null && selected?.longitude != null;
   const mapQuery = hasPin
@@ -110,7 +152,7 @@ export default function Dashboard() {
   const comingPct = rsvps.length ? Math.round((coming / rsvps.length) * 100) : 0;
   const days = lastSevenDays(rsvps);
   const peak = Math.max(1, ...days.map((d) => d.coming + d.declined));
-  const kinds = countKinds(invitations ?? []);
+  const kinds = repliesByKind(invitations ?? []);
   const shown = rsvps
     .filter((r) => filter === "all" || (filter === "yes") === r.attending)
     .reverse();
@@ -171,7 +213,12 @@ export default function Dashboard() {
 
           <section className="card summary">
             <div>
-              <h2>{selected.title}</h2>
+              <h2>
+                {selected.title}{" "}
+                <span className={`badge ${selected.is_open ? "yes" : "no"}`}>
+                  {selected.is_open ? "Open" : "Closed"}
+                </span>
+              </h2>
               <p className="meta">
                 {selected.kind} on {formatDateTime(selected.event_date)}
               </p>
@@ -180,6 +227,19 @@ export default function Dashboard() {
               <code>{`${window.location.origin}/i/${selected.slug}`}</code>
               <button type="button" className="button small" onClick={copyLink}>
                 {copied ? "Copied" : "Copy link"}
+              </button>
+            </div>
+            <div className="pills">
+              <button type="button" className="tab" onClick={toggleOpen}>
+                {selected.is_open ? "Close invitation" : "Reopen invitation"}
+              </button>
+              <button
+                type="button"
+                className="tab"
+                style={{ color: "var(--danger)" }}
+                onClick={removeInvitation}
+              >
+                Delete
               </button>
             </div>
           </section>
@@ -244,17 +304,45 @@ export default function Dashboard() {
               </section>
 
               <section className="card">
-                <h2>Your invitations by kind</h2>
+                <h2>Replies by kind</h2>
+                <div className="legend legend-blue">
+                  <span>
+                    <i className="dot dot-coming" />
+                    Coming
+                  </span>
+                  <span>
+                    <i className="dot dot-declined" />
+                    Can't make it
+                  </span>
+                </div>
                 <div className="dist">
-                  {kinds.map(([kind, count]) => {
-                    const pct = Math.round((count / invitations.length) * 100);
+                  {kinds.map(([kind, stat]) => {
+                    const total = stat.coming + stat.declined;
+                    const comingPct = total ? Math.round((stat.coming / total) * 100) : 0;
+                    const declinedPct = total ? 100 - comingPct : 0;
                     return (
                       <div className="dist-row" key={kind}>
                         <span>{kind}</span>
-                        <span className="track">
-                          <span className="fill" style={{ width: `${pct}%` }} />
+                        <span
+                          className="track"
+                          role="img"
+                          aria-label={
+                            total
+                              ? `${comingPct}% coming, ${declinedPct}% can't make it`
+                              : "No replies yet"
+                          }
+                        >
+                          <span className="fill fill-coming" style={{ width: `${comingPct}%` }} />
+                          <span className="fill fill-declined" style={{ width: `${declinedPct}%` }} />
                         </span>
-                        <span className="muted">{pct}%</span>
+                        {total ? (
+                          <span className="dist-pct">
+                            <b className="pct-coming">{comingPct}%</b>
+                            <b className="pct-declined">{declinedPct}%</b>
+                          </span>
+                        ) : (
+                          <span className="muted">No replies</span>
+                        )}
                       </div>
                     );
                   })}

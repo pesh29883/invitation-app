@@ -49,17 +49,28 @@ function formFromInvitation(inv) {
   };
 }
 
-async function reverseGeocode(lat, lng) {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.display_name || null;
-  } catch {
-    return null;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Asks OpenStreetMap what is at a spot. If there's no exact street address there, it
+// falls back to the street, neighborhood, or city, so there is nearly always a name.
+async function findAddress(lat, lng) {
+  const zoomLevels = [18, 16, 14, 10];
+  for (let i = 0; i < zoomLevels.length; i++) {
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=${zoomLevels[i]}&lat=${lat}&lon=${lng}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.display_name) return data.display_name;
+      }
+    } catch {
+      // Network hiccup: try the next level.
+    }
+    // The free service asks for no more than about one request per second.
+    if (i < zoomLevels.length - 1) await sleep(1100);
   }
+  return null;
 }
 
 function LocationPicker({ initial, hasPin, onPick }) {
@@ -98,8 +109,15 @@ function LocationPicker({ initial, hasPin, onPick }) {
     showPin(lat, lng, recenter);
     onPickRef.current(lat, lng, null);
     const lookupId = ++lookupRef.current;
-    const name = await reverseGeocode(lat, lng);
-    if (name && lookupId === lookupRef.current) onPickRef.current(lat, lng, name);
+    setStatus("Finding the address...");
+    const name = await findAddress(lat, lng);
+    if (lookupId !== lookupRef.current) return; // a newer pin replaced this one
+    if (name) {
+      onPickRef.current(lat, lng, name);
+      setStatus("");
+    } else {
+      setStatus("Couldn't find an address for this spot. Type a name for it below.");
+    }
   }
 
   useEffect(() => {
@@ -235,6 +253,11 @@ export default function CreateInvitation() {
         }
         setForm(formFromInvitation(inv));
         setReady(true);
+        if (!inv.location && inv.latitude != null && inv.longitude != null) {
+          findAddress(inv.latitude, inv.longitude).then((name) => {
+            if (name) setForm((f) => (f.location ? f : { ...f, location: name }));
+          });
+        }
       })
       .catch((err) => {
         if (err.status === 401) logout();
@@ -259,6 +282,10 @@ export default function CreateInvitation() {
     setError("");
     setBusy(true);
     try {
+      let location = form.location.trim();
+      if (!location && form.latitude !== null) {
+        location = (await findAddress(form.latitude, form.longitude)) || "";
+      }
       await api(editing ? `/api/invitations/${id}` : "/api/invitations", {
         method: editing ? "PUT" : "POST",
         auth: true,
@@ -266,7 +293,7 @@ export default function CreateInvitation() {
           kind: form.kind === "Other" ? form.customKind.trim() : form.kind,
           title: form.title,
           message: form.message,
-          location: form.location,
+          location,
           latitude: form.latitude,
           longitude: form.longitude,
           eventDate: form.eventDate ? new Date(form.eventDate).toISOString() : "",

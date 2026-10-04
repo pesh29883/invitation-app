@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, formatDateTime } from "../api";
 import { useAuth } from "../auth.jsx";
 import StatCard, { dailyCounts } from "../StatCard.jsx";
 
@@ -33,6 +33,24 @@ function initialsOf(name) {
       .join("")
       .toUpperCase() || "?"
   );
+}
+
+// A playful title that grows with how many invitations you've made.
+function hostTitle(count) {
+  if (count >= 5) return "Event pro";
+  if (count >= 3) return "Event planner";
+  if (count >= 1) return "Party starter";
+  return "New host";
+}
+
+function untilText(date) {
+  const ms = date - new Date();
+  const days = Math.floor(ms / 86400000);
+  if (days >= 2) return `in ${days} days`;
+  if (days === 1) return "tomorrow";
+  const hours = Math.floor(ms / 3600000);
+  if (hours >= 1) return `in ${hours} hours`;
+  return "starting soon";
 }
 
 export default function Profile() {
@@ -136,6 +154,13 @@ export default function Profile() {
   const shown = scoped.slice(0, 8);
   const dash = (value) => (loading || statsError ? "-" : value);
 
+  // The soonest event that hasn't happened yet
+  const now = new Date();
+  const upcoming = list
+    .filter((i) => new Date(i.event_date) > now)
+    .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))[0];
+  const upcomingComing = upcoming ? upcoming.rsvps.filter((r) => r.attending).length : 0;
+
   return (
     <>
       <div className="page-head">
@@ -147,11 +172,19 @@ export default function Profile() {
 
       <div className="profile-layout">
         <section className="card profile-card">
+          <div className="profile-cover" aria-hidden="true">
+            <img className="cover-mascot" src="/logo.png" alt="" />
+          </div>
           <div className="avatar" aria-hidden="true">
             {initialsOf(user.name)}
           </div>
           <h2>{user.name}</h2>
-          <span className="tag">Host</span>
+          <span className="tag">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            {loading || statsError ? "Host" : hostTitle(list.length)}
+          </span>
           <div>
             <Link to="/new" className="button">
               Create invitation
@@ -175,8 +208,39 @@ export default function Profile() {
         </section>
 
         <div className="profile-main">
+          <section className="card next-up" aria-label="Your next event">
+            <div className="next-up-text">
+              <p className="next-up-kicker">Next up</p>
+              {loading ? (
+                <h2>Checking your calendar...</h2>
+              ) : statsError ? (
+                <h2>Couldn't load your events.</h2>
+              ) : upcoming ? (
+                <>
+                  <h2>{upcoming.title}</h2>
+                  <p className="next-up-meta">
+                    {formatDateTime(upcoming.event_date)}, {untilText(new Date(upcoming.event_date))}
+                  </p>
+                  <p className="next-up-meta">
+                    {upcomingComing} coming so far{upcoming.is_open ? "" : " (replies closed)"}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2>Nothing coming up yet</h2>
+                  <p className="next-up-meta">Plan your next get-together and share the link.</p>
+                </>
+              )}
+              <Link to={upcoming ? "/invitations" : "/new"} className="button light">
+                {upcoming ? "Manage invitations" : "Create invitation"}
+              </Link>
+            </div>
+            <img className="next-up-mascot" src="/logo.png" alt="" />
+          </section>
+
           <div className="stat-row">
             <StatCard
+              icon="chat"
               label="All replies"
               value={dash(replies.length)}
               chip={statsError ? "Couldn't load your stats." : `across ${list.length} invitations`}
@@ -184,6 +248,7 @@ export default function Profile() {
             />
             <StatCard
               tone="good"
+              icon="check"
               label="Coming"
               value={dash(coming.length)}
               chip={`${pct(coming.length)}% of replies`}
@@ -191,6 +256,7 @@ export default function Profile() {
             />
             <StatCard
               tone="danger"
+              icon="x"
               label="Can't make it"
               value={dash(declined.length)}
               chip={`${pct(declined.length)}% of replies`}
