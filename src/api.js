@@ -4,7 +4,8 @@ const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:3001";
 export async function api(path, { method = "GET", body, auth = false, signal } = {}) {
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
-  if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
+  const token = auth ? getToken() : undefined;
+  if (token) headers.Authorization = `Bearer ${token}`;
 
   let res;
   try {
@@ -22,7 +23,8 @@ export async function api(path, { method = "GET", body, auth = false, signal } =
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (auth && res.status === 401) window.dispatchEvent(new Event(SESSION_EXPIRED));
+    // A response for an old token must not sign out a newly rotated or replaced session.
+    if (auth && res.status === 401 && getToken() === token) window.dispatchEvent(new Event(SESSION_EXPIRED));
     const err = new Error(data.error || "Something went wrong. Try again.");
     err.status = res.status;
     throw err;

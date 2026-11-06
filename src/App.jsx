@@ -16,6 +16,8 @@ import CreateInvitation from "./pages/CreateInvitation.jsx";
 import MyInvitations from "./pages/MyInvitations.jsx";
 import Profile from "./pages/Profile.jsx";
 import PublicInvitation from "./pages/PublicInvitation.jsx";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import PasswordRecovery from "./pages/PasswordRecovery.jsx";
 import Brand from "./components/Brand.jsx";
 import Icon from "./components/Icon.jsx";
 import EmptyState from "./components/EmptyState.jsx";
@@ -95,6 +97,7 @@ function Layout({ theme, onToggleTheme }) {
             <nav className="topbar-user" aria-label="Main">
               <NavLink to="/dashboard" aria-label="Overview"><Icon name="grid" size={17} /><span>Overview</span></NavLink>
               <NavLink to="/invitations" aria-label="Invitations"><Icon name="mail" size={17} /><span>Invitations</span></NavLink>
+              {user.role === "admin" && <NavLink to="/admin" aria-label="Administration"><Icon name="shield" size={17} /><span>Admin</span></NavLink>}
               <NavLink to="/profile" className="profile-nav" aria-label="Your profile"><span className="nav-avatar">{user.name.charAt(0).toUpperCase()}</span><span className="nav-name">{user.name.split(" ")[0]}</span></NavLink>
             </nav>
           )}
@@ -110,9 +113,11 @@ function Layout({ theme, onToggleTheme }) {
   );
 }
 
-function Protected({ children }) {
-  const { user } = useAuth();
+function Protected({ children, admin = false }) {
+  const { user, loading } = useAuth();
   const location = useLocation();
+  if (loading) return <p className="muted" role="status">Checking your session…</p>;
+  if (user && admin && user.role !== "admin") return <Navigate to="/dashboard" replace />;
   return user ? children : <Navigate to="/login" state={{ from: location.pathname }} replace />;
 }
 
@@ -122,7 +127,7 @@ export default function App() {
   const location = useLocation();
 
   useEffect(() => {
-    const titles = { "/login": "Welcome back", "/register": "Join the get-together", "/dashboard": "Your overview", "/invitations": "Your invitations", "/profile": "Your profile", "/new": "Create an invitation" };
+    const titles = { "/login": "Welcome back", "/register": "Join the get-together", "/dashboard": "Your overview", "/invitations": "Your invitations", "/profile": "Your profile", "/new": "Create an invitation", "/admin": "Administration", "/forgot-password": "Password recovery", "/reset-password": "Reset your password" };
     document.title = `${titles[location.pathname] || (location.pathname.startsWith("/i/") ? "You're invited" : "A little more together")} · Invitations`;
     window.scrollTo(0, 0);
   }, [location.pathname]);
@@ -141,6 +146,9 @@ export default function App() {
         />
         <Route path="/login" element={<AuthPage key="login" mode="login" />} />
         <Route path="/register" element={<AuthPage key="register" mode="register" />} />
+        <Route path="/forgot-password" element={<PasswordRecovery key="forgot" />} />
+        <Route path="/reset-password" element={<PasswordRecovery key="reset" reset />} />
+        <Route path="/admin" element={<Protected admin><AdminDashboard /></Protected>} />
         <Route
           path="/dashboard"
           element={

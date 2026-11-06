@@ -103,7 +103,8 @@ export default function AuthPage({ mode }) {
                 {errors.password ? <span id="password-error" className="field-error" role="alert">{errors.password}</span> : isRegister && <span id="password-hint" className="hint">At least 8 characters. A little longer is even better.</span>}
                 {capsLock && <span id="caps-hint" className="hint" role="status">Caps Lock is on.</span>}
               </div>
-              <label className="checkbox-field"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />Keep me signed in</label>
+              <div className="auth-options"><label className="checkbox-field"><input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />Keep me signed in</label>{!isRegister && <Link to="/forgot-password">Forgot password?</Link>}</div>
+              {location.state?.passwordReset && <p className="notice" role="status">Password updated. Log in with your new password.</p>}
               {error && <p className="form-error" role="alert">{error}</p>}
               <button type="submit" className="button auth-submit" disabled={busy}>{busy ? <><span className="spinner" />{isRegister ? "Making room for you…" : "Signing you in…"}</> : <>{isRegister ? "Create my account" : "Log in"}<Icon name="arrow" size={19} /></>}</button>
             </form>

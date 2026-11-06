@@ -289,6 +289,60 @@ a:hover { text-decoration-thickness: 2px; }
 .leaflet-container { font-family: var(--font); }
 .map-pin span { display: block; width: 28px; height: 28px; border: 3px solid #fff; border-radius: 50% 50% 50% 0; background: #2e6556; transform: rotate(-45deg); box-shadow: 0 2px 5px #0003; }
 
+/* Account recovery and community administration. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.auth-options { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+.auth-options > a { font-size: 0.77rem; }
+.recovery-page { display: flex; flex-direction: column; min-height: 100svh; }
+.recovery-card { width: 100%; max-width: 29rem; margin: auto; padding: 2.5rem; }
+.recovery-card > .eyebrow { margin-bottom: 0.75rem; }
+.recovery-card h1 { margin-bottom: 0.8rem; font-family: var(--display); font-weight: 400; }
+.recovery-card > .muted { margin-bottom: 1.75rem; font-size: 0.85rem; }
+.recovery-card > a { display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 1.25rem; font-size: 0.8rem; }
+.recovery-page > .auth-footer { margin-top: auto; padding-top: 2rem; }
+.admin-stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.admin-stat { padding: 1.25rem; }
+.admin-stat .stat-value { color: var(--accent); }
+.admin-notice { margin-bottom: 1.25rem; }
+.admin-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; padding: 0 0 1.25rem; }
+.admin-search { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 18rem; }
+.admin-search .search-box { max-width: none; }
+.admin-filters > .field { flex: 0 1 10rem; }
+.admin-filters .list-select { min-height: 2.65rem; font-size: 0.8rem; padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.admin-table { min-width: 57rem; }
+.admin-table th { white-space: nowrap; }
+.admin-member { display: flex; align-items: center; gap: 0.7rem; min-width: 10rem; }
+.admin-member .nav-avatar { flex-shrink: 0; }
+.admin-member strong { font-size: 0.8rem; }
+.admin-email { display: block; margin-top: 0.15rem; color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.admin-you { margin-left: 0.4rem; color: var(--muted); font-size: 0.65rem; }
+.admin-badge { background: var(--lav-soft); color: var(--lav-ink); }
+.admin-table .row-actions { flex-wrap: nowrap; }
+.admin-table .button { white-space: nowrap; }
+.admin-empty { display: grid; justify-items: center; gap: 0.7rem; padding: 2.5rem 1rem; color: var(--muted); text-align: center; font-size: 0.83rem; }
+.admin-pagination { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.admin-activity { margin-top: 1.5rem; }
+.admin-activity-list { list-style: none; padding: 0; margin: 0; }
+.admin-activity-list li { display: grid; grid-template-columns: 0.6rem minmax(0, 1fr) auto; gap: 1rem; align-items: start; padding: 1.1rem 0; border-top: 1px solid var(--line); font-size: 0.8rem; overflow-wrap: anywhere; }
+.admin-activity-list time { color: var(--muted); font-size: 0.7rem; text-align: right; }
+.admin-activity-dot { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; margin-top: 0.45rem; }
+.account-dialog { width: min(31rem, calc(100% - 2rem)); max-height: calc(100svh - 3rem); padding: 2rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); color: var(--ink); box-shadow: 0 24px 80px #0003; }
+.account-dialog::backdrop { background: #14251fd1; backdrop-filter: blur(3px); }
+.dialog-heading { display: flex; justify-content: space-between; align-items: start; }
+.account-dialog h2 { font-family: var(--display); font-weight: 400; font-size: 2rem; }
+.account-dialog form { margin-top: 1.5rem; }
+.admin-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 600px) {
+  .admin-stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.65rem; }
+  .admin-activity-list li { grid-template-columns: 0.6rem minmax(0, 1fr); gap: 0.75rem; }
+  .admin-activity-list time { grid-column: 2; text-align: left; }
+  .recovery-card { padding: 1.5rem; }
+  .account-dialog { padding: 1.5rem; }
+  .admin-search { flex-basis: 100%; }
+  .admin-filters > .field { flex: 1; }
+  .topbar-user .profile-nav { margin-left: auto; }
+}
+
 /* People and preferences. */
 .profile-layout { display: grid; grid-template-columns: 19rem minmax(0, 1fr); gap: 1.25rem; align-items: start; }
 .profile-main { display: grid; min-width: 0; gap: 1.25rem; }

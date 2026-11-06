@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { clearSession, getToken, readSession, saveSession, updateSessionUser } from "../src/session.js";
+import { clearSession, getToken, readSession, saveSession, updateSessionToken, updateSessionUser } from "../src/session.js";
 
 function createStorage() {
   const values = new Map();
@@ -75,5 +75,27 @@ test("sign-in and sign-out still work when browser storage is blocked", () => {
   assert.equal(getToken(), token);
   clearSession();
   assert.equal(readSession(), null);
+});
+
+test("password rotation keeps the chosen store and replaces the old credential", () => {
+  for (const remember of [true, false]) {
+    saveSession(tokenWithExpiry(3600), user, remember);
+    const rotated = tokenWithExpiry(7200);
+    updateSessionToken(rotated);
+    updateSessionUser({ ...user, role: "admin" });
+    assert.equal(getToken(), rotated);
+    assert.equal(window[remember ? "localStorage" : "sessionStorage"].getItem("invitations-token"), rotated);
+    assert.equal(window[remember ? "sessionStorage" : "localStorage"].getItem("invitations-token"), null);
+    assert.equal(readSession().user.role, "admin");
+  }
+});
+
+test("password rotation retains credentials when storage is blocked", () => {
+  Object.defineProperty(window, "localStorage", { get() { throw new Error("Storage disabled"); } });
+  Object.defineProperty(window, "sessionStorage", { get() { throw new Error("Storage disabled"); } });
+  saveSession(tokenWithExpiry(3600), user);
+  const rotated = tokenWithExpiry(7200);
+  updateSessionToken(rotated);
+  assert.equal(getToken(), rotated);
 });
 });

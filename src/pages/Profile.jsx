@@ -98,7 +98,8 @@ export default function Profile({ themePref, onThemePref }) {
         auth: true,
         body: { name, email, currentPassword: emailPassword },
       });
-      updateUser(updated);
+      const { token, ...nextUser } = updated;
+      updateUser(nextUser, token);
       setName(updated.name);
       setEmail(updated.email);
       setEmailPassword("");
@@ -119,13 +120,14 @@ export default function Profile({ themePref, onThemePref }) {
     }
     setPasswordBusy(true);
     try {
-      await api("/api/me/password", {
+      const data = await api("/api/me/password", {
         method: "PATCH",
         auth: true,
         body: { currentPassword: passwords.current, newPassword: passwords.next },
       });
+      updateUser(data.user, data.token);
       setPasswords({ current: "", next: "", confirm: "" });
-      setPasswordMessage({ type: "ok", text: "Your password has been changed." });
+      setPasswordMessage({ type: "ok", text: "Your password has been changed. Other sessions have been signed out." });
     } catch (err) {
       setPasswordMessage({ type: "error", text: err.message });
     } finally {

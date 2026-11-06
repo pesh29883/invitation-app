@@ -35,6 +35,21 @@ test("an incorrect login shows its error without triggering session expiry", asy
   assert.equal(expired, false);
 });
 
+test("a delayed rejection for an old token cannot sign out a newly rotated session", async () => {
+  const token = (expiry) => `header.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expiry })).toString("base64url")}.signature`;
+  const user = { id: 1, name: "Alex", email: "alex@example.com" };
+  saveSession(token(3600), user);
+  let finish;
+  mock.method(globalThis, "fetch", () => new Promise((resolve) => { finish = resolve; }));
+  let expired = false;
+  window.addEventListener(SESSION_EXPIRED, () => { expired = true; });
+  const request = api("/api/me", { auth: true });
+  saveSession(token(7200), user);
+  finish(Response.json({ error: "Session ended." }, { status: 401 }));
+  await assert.rejects(request, { status: 401 });
+  assert.equal(expired, false);
+});
+
 test("network failures retain a useful message and original cause", async () => {
   const cause = new TypeError("Failed to fetch");
   mock.method(globalThis, "fetch", async () => { throw cause; });

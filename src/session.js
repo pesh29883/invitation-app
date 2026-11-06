@@ -66,4 +66,16 @@ export function updateSessionUser(user) {
   }
 }
 
+export function updateSessionToken(token) {
+  const session = readSession();
+  if (!session) return;
+  memorySession = { ...session, token };
+  for (const name of ["sessionStorage", "localStorage"]) {
+    try {
+      const store = storage(name);
+      if (store?.getItem(TOKEN_KEY)) store.setItem(TOKEN_KEY, token);
+    } catch { /* Retain the rotated token in memory when storage is blocked. */ }
+  }
+}
+
 export const getToken = () => readSession()?.token;
