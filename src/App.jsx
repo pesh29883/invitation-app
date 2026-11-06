@@ -1,12 +1,12 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import {
-  Link,
   Navigate,
   NavLink,
   Outlet,
   Route,
   Routes,
   useNavigate,
+  useLocation,
 } from "react-router-dom";
 import "./App.css";
 import { useAuth } from "./auth.jsx";
@@ -16,6 +16,9 @@ import CreateInvitation from "./pages/CreateInvitation.jsx";
 import MyInvitations from "./pages/MyInvitations.jsx";
 import Profile from "./pages/Profile.jsx";
 import PublicInvitation from "./pages/PublicInvitation.jsx";
+import Brand from "./components/Brand.jsx";
+import Icon from "./components/Icon.jsx";
+import EmptyState from "./components/EmptyState.jsx";
 
 const THEME_KEY = "invitations-theme"; // saved as "light" or "dark"; absent means "match my device"
 
@@ -66,26 +69,7 @@ function ThemeToggle({ theme, onToggle }) {
   const label = dark ? "Switch to light theme" : "Switch to dark theme";
   return (
     <button type="button" className="theme-toggle" onClick={onToggle} aria-label={label} title={label}>
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        {dark ? (
-          <>
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-          </>
-        ) : (
-          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-        )}
-      </svg>
+      <Icon name={dark ? "sun" : "moon"} size={18} />
     </button>
   );
 }
@@ -99,47 +83,54 @@ function Layout({ theme, onToggleTheme }) {
     navigate("/login");
   }
 
+  if (!user) return <main id="main-content" className="auth-shell"><Outlet context={{ theme, onToggleTheme }} /></main>;
+
   return (
     <>
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <header className="topbar">
-        <Link to="/" className="brand">
-          <img src="/logo.png" alt="" className="brand-logo" />
-          Invitations
-        </Link>
+        <Brand />
         <div className="topbar-actions">
           {user && (
             <nav className="topbar-user" aria-label="Main">
-              <NavLink to="/dashboard">Dashboard</NavLink>
-              <NavLink to="/invitations">Invitations</NavLink>
-              <NavLink to="/profile">{user.name}</NavLink>
-              <button type="button" className="link-button" onClick={handleLogout}>
-                Log out
-              </button>
+              <NavLink to="/dashboard" aria-label="Overview"><Icon name="grid" size={17} /><span>Overview</span></NavLink>
+              <NavLink to="/invitations" aria-label="Invitations"><Icon name="mail" size={17} /><span>Invitations</span></NavLink>
+              <NavLink to="/profile" className="profile-nav" aria-label="Your profile"><span className="nav-avatar">{user.name.charAt(0).toUpperCase()}</span><span className="nav-name">{user.name.split(" ")[0]}</span></NavLink>
             </nav>
           )}
           <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+          <button type="button" className="theme-toggle logout-button" onClick={handleLogout} aria-label="Log out" title="Log out"><Icon name="logout" size={18} /></button>
         </div>
       </header>
-      <main className="shell">
-        <Outlet />
+      <main id="main-content" className="shell">
+        <Outlet context={{ theme, onToggleTheme }} />
       </main>
+      <footer className="app-footer"><span>Good company. Great memories.</span><span>Made for getting together<Icon name="heart" size={13} /></span></footer>
     </>
   );
 }
 
 function Protected({ children }) {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/login" replace />;
+  const location = useLocation();
+  return user ? children : <Navigate to="/login" state={{ from: location.pathname }} replace />;
 }
 
 export default function App() {
   const { user } = useAuth();
   const { pref, theme, choose } = useTheme();
+  const location = useLocation();
+
+  useEffect(() => {
+    const titles = { "/login": "Welcome back", "/register": "Join the get-together", "/dashboard": "Your overview", "/invitations": "Your invitations", "/profile": "Your profile", "/new": "Create an invitation" };
+    document.title = `${titles[location.pathname] || (location.pathname.startsWith("/i/") ? "You're invited" : "A little more together")} · Invitations`;
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return (
     <Routes>
       {/* Guests see this page without the app header */}
-      <Route path="/i/:slug" element={<PublicInvitation />} />
+      <Route path="/i/:slug" element={<PublicInvitation key={location.pathname} />} />
 
       <Route
         element={<Layout theme={theme} onToggleTheme={() => choose(theme === "dark" ? "light" : "dark")} />}
@@ -148,8 +139,8 @@ export default function App() {
           path="/"
           element={<Navigate to={user ? "/dashboard" : "/login"} replace />}
         />
-        <Route path="/login" element={<AuthPage mode="login" />} />
-        <Route path="/register" element={<AuthPage mode="register" />} />
+        <Route path="/login" element={<AuthPage key="login" mode="login" />} />
+        <Route path="/register" element={<AuthPage key="register" mode="register" />} />
         <Route
           path="/dashboard"
           element={
@@ -162,7 +153,7 @@ export default function App() {
           path="/new"
           element={
             <Protected>
-              <CreateInvitation />
+              <CreateInvitation key={location.pathname} />
             </Protected>
           }
         />
@@ -178,7 +169,7 @@ export default function App() {
           path="/invitations/:id/edit"
           element={
             <Protected>
-              <CreateInvitation />
+              <CreateInvitation key={location.pathname} />
             </Protected>
           }
         />
@@ -190,6 +181,7 @@ export default function App() {
             </Protected>
           }
         />
+        <Route path="*" element={<section className="card"><EmptyState title="Looks like a little detour." description="This page isn't here, but your next good time is just around the corner." action="Back to the beginning" to="/" icon="pin" /></section>} />
       </Route>
     </Routes>
   );

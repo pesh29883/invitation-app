@@ -1,21 +1,23 @@
 <!doctype html>
 <html lang="en">
-  <script>
-  (function () {
-    try {
-      var t = localStorage.getItem("invitations-theme");
-      if (t !== "light" && t !== "dark") {
-        t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-      }
-      document.documentElement.dataset.theme = t;
-    } catch (e) {}
-  })();
-</script>
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("invitations-theme");
+          if (t !== "light" && t !== "dark") {
+            t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>puccino</title>
+    <meta name="description" content="Make a little space for your favorite people. Create personal invitations, share one simple link, and keep up with every reply." />
+    <meta name="theme-color" content="#f7f7f2" />
+    <title>Invitations · A little more together</title>
   </head>
   <body>
     <div id="root"></div>

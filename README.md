@@ -1,16 +1,52 @@
-# React + Vite
+# Invitations
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A warm little home for your get-togethers: create invitations, share a link, and see who's coming.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Use Node.js 22.12 or newer. Install the frontend and API dependencies:
 
-## React Compiler
+```powershell
+npm.cmd install
+npm.cmd --prefix server install
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Create `server/.env` using `server/.env.example` as a reference. Connect it to the project's existing PostgreSQL database; the API expects the `users`, `invitations`, and `rsvps` tables.
 
-## Expanding the ESLint configuration
+Start the API in one terminal:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```powershell
+cd server
+npm.cmd start
+```
+
+Start the frontend from this directory in another:
+
+```powershell
+npm.cmd run dev
+```
+
+Open **http://localhost:5173**. The API runs at **http://localhost:3001**; its health endpoint is `/api/health`. On macOS or Linux, use `npm` in place of `npm.cmd`.
+
+The development and build scripts use Vite's native configuration loader to work with this Windows environment. If the frontend runs on another origin, update `CLIENT_URL` in `server/.env`. Set `VITE_API_URL` in a frontend `.env.local` when using a different API.
+
+SMTP is optional. Without it, guest replies are saved but email notifications are skipped. Keep environment files and credentials out of version control.
+
+## Checks
+
+```powershell
+npm.cmd test
+npm.cmd run lint
+npm.cmd run build
+```
+
+The tests cover session expiry, remembered versus tab-only sign-in, blocked browser storage, API errors, and canceled requests.
+
+## Features
+
+- Responsive login and signup, password visibility, autofill, and inline validation.
+- Remembered or tab-only sign-in; expired credentials return you to login.
+- Light, dark, and device themes.
+- Invitation editor with live preview and an optional map pin.
+- Searchable invitations and guest replies, attendance summaries, and sharing.
+- Public invitations with accessible RSVP controls and reply confirmation.

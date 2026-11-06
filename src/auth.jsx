@@ -1,36 +1,30 @@
-import { createContext, useCallback, useContext, useState } from "react";
-import { clearToken, setToken } from "./api";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { clearSession, readSession, saveSession, SESSION_EXPIRED, updateSessionUser } from "./session.js";
 
 const AuthContext = createContext(null);
-const USER_KEY = "invitations-user";
-
-function loadUser() {
-  try {
-    return JSON.parse(localStorage.getItem(USER_KEY));
-  } catch {
-    return null;
-  }
-}
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(loadUser);
+  const [user, setUser] = useState(() => readSession()?.user || null);
 
-  const login = useCallback((token, nextUser) => {
-    setToken(token);
-    localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+  const login = useCallback((token, nextUser, remember = true) => {
+    saveSession(token, nextUser, remember);
     setUser(nextUser);
   }, []);
 
   const logout = useCallback(() => {
-    clearToken();
-    localStorage.removeItem(USER_KEY);
+    clearSession();
     setUser(null);
   }, []);
 
   const updateUser = useCallback((nextUser) => {
-    localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+    updateSessionUser(nextUser);
     setUser(nextUser);
   }, []);
+
+  useEffect(() => {
+    window.addEventListener(SESSION_EXPIRED, logout);
+    return () => window.removeEventListener(SESSION_EXPIRED, logout);
+  }, [logout]);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, updateUser }}>

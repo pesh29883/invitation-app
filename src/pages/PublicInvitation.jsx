@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, formatDateTime } from "../api";
+import Brand from "../components/Brand.jsx";
+import Icon from "../components/Icon.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 
 export default function PublicInvitation() {
   const { slug } = useParams();
@@ -11,15 +14,19 @@ export default function PublicInvitation() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    api(`/api/public/${slug}`)
+    const controller = new AbortController();
+    api(`/api/public/${slug}`, { signal: controller.signal })
       .then(setInvitation)
-      .catch((err) => setLoadError(err.message));
-  }, [slug]);
+      .catch((err) => { if (!controller.signal.aborted) setLoadError(err.message); });
+    return () => controller.abort();
+  }, [slug, refreshKey]);
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (busy) return;
     setError("");
     if (!name.trim()) {
       setError("Enter your name so the host knows who replied.");
@@ -43,7 +50,8 @@ export default function PublicInvitation() {
     return (
       <main className="invite">
         <div className="card">
-          <h2>{loadError}</h2>
+          <EmptyState title="A little trouble opening this one." description={loadError} icon="mail" />
+          <div className="actions"><button className="button secondary" onClick={() => { setLoadError(""); setRefreshKey((key) => key + 1); }}>Try again</button><Brand /></div>
         </div>
       </main>
     );
@@ -52,7 +60,7 @@ export default function PublicInvitation() {
   if (!invitation) {
     return (
       <main className="invite">
-        <p>Loading your invitation...</p>
+        <div className="card" role="status"><p className="muted">Something lovely is on its way…</p><div className="skeleton" /><div className="skeleton" style={{ width: "60%" }} /></div>
       </main>
     );
   }
@@ -65,12 +73,14 @@ export default function PublicInvitation() {
 
   return (
     <main className="invite">
+      <div className="invite-brand"><Brand /></div>
       <header className="invite-hero">
+        <span className="invite-flower" aria-hidden="true">✳</span>
         <p className="invite-from">{invitation.host_name} invites you</p>
         <h1 className="invite-title">{invitation.title}</h1>
         <div className="invite-details">
-          <p>{formatDateTime(invitation.event_date)}</p>
-          {invitation.location && <p>{invitation.location}</p>}
+          <p><Icon name="calendar" size={17} />{formatDateTime(invitation.event_date)}</p>
+          {invitation.location && <p><Icon name="pin" size={17} />{invitation.location}</p>}
         </div>
       </header>
 
@@ -112,21 +122,28 @@ export default function PublicInvitation() {
           </div>
         ) : sent ? (
           <div role="status">
+            <span className="success-icon"><Icon name="check" size={25} /></span>
             <h2 id="reply-heading">
               {sent.attending
                 ? `Thanks, ${sent.name}. See you there!`
                 : `Thanks for letting us know, ${sent.name}.`}
             </h2>
-            <p>{invitation.host_name} has been notified.</p>
+            <p className="muted">Your reply is saved for {invitation.host_name}. Thanks for being part of the plan.</p>
           </div>
         ) : (
           <>
             <h2 id="reply-heading">Will you be there?</h2>
-            <form className="stack" onSubmit={handleSubmit} noValidate>
+            <p className="muted">A little yes or no helps {invitation.host_name.split(" ")[0]} get everything ready.</p>
+            <form className="stack" onSubmit={handleSubmit} aria-busy={busy}>
               <label className="field">
                 <span>Your name</span>
                 <input
                   type="text"
+                  name="guestName"
+                  autoComplete="name"
+                  placeholder="The name your host knows you by"
+                  required
+                  maxLength={100}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -147,7 +164,7 @@ export default function PublicInvitation() {
                         checked={answer === value}
                         onChange={() => setAnswer(value)}
                       />
-                      <span>{label}</span>
+                      <span><Icon name={value === "yes" ? "check" : "close"} size={16} />{label}</span>
                     </label>
                   ))}
                 </div>
@@ -160,12 +177,13 @@ export default function PublicInvitation() {
               )}
 
               <button type="submit" className="button" disabled={busy}>
-                Send my reply
+                {busy ? <><span className="spinner" />Sending your reply…</> : <>Send my reply<Icon name="arrow" size={17} /></>}
               </button>
             </form>
           </>
         )}
       </section>
+      <footer className="invite-footer">A little invitation. A lovely reason to get together.</footer>
     </main>
   );
 }

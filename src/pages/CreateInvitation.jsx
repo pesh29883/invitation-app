@@ -4,6 +4,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { api } from "../api";
 import { useAuth } from "../auth.jsx";
+import Icon from "../components/Icon.jsx";
+import InvitationPreview from "../components/InvitationPreview.jsx";
 
 const KINDS = ["Birthday", "Wedding", "Baby shower", "Graduation", "Party", "Other"];
 
@@ -58,7 +60,8 @@ async function findAddress(lat, lng) {
   for (let i = 0; i < zoomLevels.length; i++) {
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=${zoomLevels[i]}&lat=${lat}&lon=${lng}`
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=${zoomLevels[i]}&lat=${lat}&lon=${lng}`,
+        { signal: AbortSignal.timeout(5000) }
       );
       if (res.ok) {
         const data = await res.json();
@@ -138,7 +141,9 @@ function LocationPicker({ initial, hasPin, onPick }) {
       showPin(initialRef.current.lat, initialRef.current.lng, true);
     }
 
+    const lookup = lookupRef;
     return () => {
+      lookup.current++;
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
@@ -154,7 +159,8 @@ function LocationPicker({ initial, hasPin, onPick }) {
     setStatus("");
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`,
+        { signal: AbortSignal.timeout(8000) }
       );
       if (!res.ok) throw new Error("search failed");
       const results = await res.json();
@@ -190,7 +196,8 @@ function LocationPicker({ initial, hasPin, onPick }) {
       () => {
         setStatus("Couldn't get your location. Check the browser permission, or search instead.");
         setBusy(false);
-      }
+      },
+      { timeout: 10000 }
     );
   }
 
@@ -233,7 +240,7 @@ export default function CreateInvitation() {
   const { id } = useParams();
   const editing = Boolean(id);
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const [form, setForm] = useState(blankForm);
   const [ready, setReady] = useState(!editing);
@@ -279,7 +286,12 @@ export default function CreateInvitation() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (busy) return;
     setError("");
+    if (!form.title.trim() || (form.kind === "Other" && !form.customKind.trim())) {
+      setError("Give your invitation a title and choose an occasion.");
+      return;
+    }
     setBusy(true);
     try {
       let location = form.location.trim();
@@ -323,10 +335,13 @@ export default function CreateInvitation() {
   if (!ready) return <p className="muted">Loading your invitation...</p>;
 
   return (
-    <section className="card form-card">
-      <h1>{editing ? "Edit invitation" : "Create an invitation"}</h1>
+    <>
+    <div className="page-head"><div><p className="eyebrow"><Icon name="sparkle" size={15} />A little planning, a lot of together</p><h1>{editing ? "Make it just right." : "Something good is in the making."}</h1><p className="muted">{editing ? "A few little changes. The same good company." : "Add the details. Make it yours. Bring your people together."}</p></div><Link className="button secondary" to={backTo}><Icon name="back" size={16} />Back to your plans</Link></div>
+    <div className="editor-layout">
+    <section className="card form-card" aria-label={editing ? "Edit invitation" : "Create invitation"}>
 
-      <form className="stack" onSubmit={handleSubmit} noValidate>
+      <form className="stack" onSubmit={handleSubmit} aria-busy={busy}>
+        <h2 className="form-section-title"><span>1</span>The occasion</h2>
         <label className="field">
           <span>What kind of invitation is it?</span>
           <select value={form.kind} onChange={update("kind")}>
@@ -339,24 +354,27 @@ export default function CreateInvitation() {
         {form.kind === "Other" && (
           <label className="field">
             <span>Describe the kind</span>
-            <input type="text" value={form.customKind} onChange={update("customKind")} />
+            <input type="text" name="customKind" required maxLength={80} placeholder="A picnic, a reunion, a just-because…" value={form.customKind} onChange={update("customKind")} />
           </label>
         )}
 
         <label className="field">
           <span>Title</span>
-          <input type="text" value={form.title} onChange={update("title")} />
+          <input type="text" name="title" required maxLength={160} placeholder="Give your good time a name" value={form.title} onChange={update("title")} />
         </label>
 
         <label className="field">
           <span>Date and time</span>
           <input
             type="datetime-local"
+            name="eventDate"
+            required
             value={form.eventDate}
             onChange={update("eventDate")}
           />
         </label>
 
+        <h2 className="form-section-title"><span>2</span>The meeting place <span className="optional-label">Optional</span></h2>
         <LocationPicker
           initial={
             editing && form.latitude !== null
@@ -369,15 +387,17 @@ export default function CreateInvitation() {
 
         <label className="field">
           <span>Location name</span>
-          <input type="text" value={form.location} onChange={update("location")} />
+          <input type="text" name="location" maxLength={500} placeholder="Your favorite spot, or somewhere new" value={form.location} onChange={update("location")} />
           <span className="hint">
             Filled in from your pin. Edit it to say something like "Grandma's house".
           </span>
         </label>
 
+        <h2 className="form-section-title"><span>3</span>A personal touch</h2>
         <label className="field">
           <span>Message for your guests</span>
-          <textarea rows="4" value={form.message} onChange={update("message")} />
+          <textarea name="message" rows="4" maxLength={4000} placeholder="The dress code, what to bring, or just a little note to say you can't wait." value={form.message} onChange={update("message")} />
+          <span className="hint">A little note makes it feel like you. Optional.</span>
         </label>
 
         {error && (
@@ -388,11 +408,14 @@ export default function CreateInvitation() {
 
         <div className="actions">
           <button type="submit" className="button" disabled={busy}>
-            {editing ? "Save changes" : "Create invitation"}
+            {busy ? <><span className="spinner" />Saving your plans…</> : <><Icon name={editing ? "check" : "plus"} size={17} />{editing ? "Save changes" : "Create invitation"}</>}
           </button>
           <Link to={backTo}>Cancel</Link>
         </div>
       </form>
     </section>
+    <aside className="editor-preview" aria-label="Live invitation preview"><p className="eyebrow"><Icon name="eye" size={15} />A little preview</p><InvitationPreview title={form.title} kind={form.kind === "Other" ? form.customKind : form.kind} date={form.eventDate} location={form.location} message={form.message} host={user.name.split(" ")[0]} /><p className="editor-preview-note">Your details, coming together in real time.<br />You'll get a shareable link when it's ready.</p></aside>
+    </div>
+    </>
   );
 }

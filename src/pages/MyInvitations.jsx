@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../auth.jsx";
 import StatCard, { dailyCounts } from "../StatCard.jsx";
+import Icon from "../components/Icon.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 
 const TABS = [
   ["all", "All"],
@@ -24,15 +26,20 @@ export default function MyInvitations() {
   const [confirmId, setConfirmId] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
   const [tab, setTab] = useState("all");
+  const [query, setQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
-    api("/api/invitations", { auth: true })
-      .then(setInvitations)
+    const controller = new AbortController();
+    api("/api/invitations", { auth: true, signal: controller.signal })
+      .then((data) => { setInvitations(data); setError(""); })
       .catch((err) => {
+        if (controller.signal.aborted) return;
         if (err.status === 401) logout();
         else setError(err.message);
       });
-  }, [logout]);
+    return () => controller.abort();
+  }, [logout, refreshKey]);
 
   async function copyLink(inv) {
     const url = `${window.location.origin}/i/${inv.slug}`;
@@ -84,24 +91,26 @@ export default function MyInvitations() {
   const closed = list.filter((i) => !i.is_open);
   const repliesOf = (items) => items.flatMap((i) => i.rsvps);
   const pct = (n) => (list.length ? Math.round((n / list.length) * 100) : 0);
-  const shown = tab === "open" ? open : tab === "closed" ? closed : list;
+  const shown = (tab === "open" ? open : tab === "closed" ? closed : list).filter((inv) => `${inv.title} ${inv.kind} ${inv.location}`.toLowerCase().includes(query.trim().toLowerCase()));
   const counts = { all: list.length, open: open.length, closed: closed.length };
 
   return (
     <>
       <div className="page-head">
         <div>
-          <h1>Your invitations</h1>
-          <p className="muted">Edit, close, or delete the invitations you've made.</p>
+          <p className="eyebrow"><Icon name="mail" size={15} />A little something to look forward to</p>
+          <h1>Your invitations.</h1>
+          <p className="muted">All your get-togethers, beautifully in one place.</p>
         </div>
         <Link to="/new" className="button">
+          <Icon name="plus" size={18} />
           Create invitation
         </Link>
       </div>
 
       {error && (
         <p className="form-error" role="alert">
-          {error}
+          {error}{" "}<button className="link-button" onClick={() => setRefreshKey((key) => key + 1)}>Try again</button>
         </p>
       )}
 
@@ -129,6 +138,7 @@ export default function MyInvitations() {
       </div>
 
       <section className="card list-card">
+        <div className="list-toolbar">
         <div className="tabs-line">
           {TABS.map(([value, label]) => (
             <button
@@ -142,15 +152,13 @@ export default function MyInvitations() {
             </button>
           ))}
         </div>
+        <div className="search-box"><Icon name="search" size={17} /><input type="search" className="search-input" placeholder="Find an invitation…" aria-label="Search invitations" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
+        </div>
 
         {loading && <p className="muted" style={{ marginTop: "1rem" }}>Loading your invitations...</p>}
 
         {invitations && shown.length === 0 && (
-          <p className="muted" style={{ marginTop: "1rem" }}>
-            {list.length === 0
-              ? "No invitations yet. Create one and share its link to start collecting replies."
-              : "No invitations in this tab."}
-          </p>
+          <EmptyState title={list.length === 0 ? "Your next good time starts here." : "No invitations found."} description={list.length === 0 ? "Make an invitation, share a link, and leave the rest to good company." : "Try a different search or switch to another tab."} action={list.length === 0 ? "Create your first invitation" : undefined} icon={list.length === 0 ? "mail" : "search"} />
         )}
 
         <ul className="rows">
@@ -179,8 +187,9 @@ export default function MyInvitations() {
 
                 <div className="row-actions">
                   <button type="button" className="button small" onClick={() => copyLink(inv)}>
-                    {copiedId === inv.id ? "Copied" : "Copy link"}
+                    <Icon name={copiedId === inv.id ? "check" : "link"} size={14} /><span role="status">{copiedId === inv.id ? "Copied!" : "Copy link"}</span>
                   </button>
+                  <Link className="button small secondary" to={`/i/${inv.slug}`} target="_blank" rel="noreferrer">Preview</Link>
                   <Link className="button small secondary" to={`/invitations/${inv.id}/edit`}>
                     Edit
                   </Link>

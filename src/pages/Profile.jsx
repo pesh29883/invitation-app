@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import { api, formatDateTime } from "../api";
 import { useAuth } from "../auth.jsx";
 import StatCard, { dailyCounts } from "../StatCard.jsx";
+import logo from "../assets/logo.png";
+import Icon from "../components/Icon.jsx";
+import PasswordInput from "../components/PasswordInput.jsx";
 
 const TABS = [
   ["all", "All"],
@@ -72,12 +75,15 @@ export default function Profile({ themePref, onThemePref }) {
   const [passwordBusy, setPasswordBusy] = useState(false);
 
   useEffect(() => {
-    api("/api/invitations", { auth: true })
+    const controller = new AbortController();
+    api("/api/invitations", { auth: true, signal: controller.signal })
       .then(setInvitations)
       .catch((err) => {
+        if (controller.signal.aborted) return;
         if (err.status === 401) logout();
         else setStatsError(true);
       });
+    return () => controller.abort();
   }, [logout]);
 
   const emailChanged = email.trim().toLowerCase() !== user.email;
@@ -165,7 +171,8 @@ export default function Profile({ themePref, onThemePref }) {
     <>
       <div className="page-head">
         <div>
-          <h1>Your profile</h1>
+          <p className="eyebrow"><Icon name="user" size={15} />Make yourself at home</p>
+          <h1>Your little corner.</h1>
           <p className="muted">Reply notifications are sent to your email address.</p>
         </div>
       </div>
@@ -173,7 +180,7 @@ export default function Profile({ themePref, onThemePref }) {
       <div className="profile-layout">
         <section className="card profile-card">
           <div className="profile-cover" aria-hidden="true">
-            <img className="cover-mascot" src="/logo.png" alt="" />
+            <img className="cover-mascot" src={logo} alt="" />
           </div>
           <div className="avatar" aria-hidden="true">
             {initialsOf(user.name)}
@@ -235,7 +242,7 @@ export default function Profile({ themePref, onThemePref }) {
                 {upcoming ? "Manage invitations" : "Create invitation"}
               </Link>
             </div>
-            <img className="next-up-mascot" src="/logo.png" alt="" />
+            <img className="next-up-mascot" src={logo} alt="" />
           </section>
 
           <div className="stat-row">
@@ -339,15 +346,15 @@ export default function Profile({ themePref, onThemePref }) {
       <div className="profile-grid">
         <section className="card">
           <h2>Your details</h2>
-          <form className="stack" onSubmit={saveDetails} noValidate>
+          <form className="stack" onSubmit={saveDetails}>
             <label className="field">
               <span>Name</span>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} />
+              <input type="text" name="name" autoComplete="name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} />
             </label>
 
             <label className="field">
               <span>Email</span>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+              <input type="email" name="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
 
             {emailChanged && (
@@ -355,6 +362,8 @@ export default function Profile({ themePref, onThemePref }) {
                 <span>Current password</span>
                 <input
                   type="password"
+                  autoComplete="current-password"
+                  required
                   value={emailPassword}
                   onChange={(e) => setEmailPassword(e.target.value)}
                 />
@@ -365,18 +374,20 @@ export default function Profile({ themePref, onThemePref }) {
             <Message message={detailsMessage} />
 
             <button type="submit" className="button" disabled={detailsBusy}>
-              Save changes
+              {detailsBusy ? "Saving…" : "Save changes"}
             </button>
           </form>
         </section>
 
         <section className="card">
           <h2>Change password</h2>
-          <form className="stack" onSubmit={savePassword} noValidate>
+          <form className="stack" onSubmit={savePassword}>
             <label className="field">
               <span>Current password</span>
               <input
                 type="password"
+                autoComplete="current-password"
+                required
                 value={passwords.current}
                 onChange={setPassword("current")}
               />
@@ -384,7 +395,7 @@ export default function Profile({ themePref, onThemePref }) {
 
             <label className="field">
               <span>New password</span>
-              <input type="password" value={passwords.next} onChange={setPassword("next")} />
+              <PasswordInput id="new-password" autoComplete="new-password" required minLength={8} value={passwords.next} onChange={setPassword("next")} />
               <span className="hint">At least 8 characters.</span>
             </label>
 
@@ -392,6 +403,9 @@ export default function Profile({ themePref, onThemePref }) {
               <span>Confirm new password</span>
               <input
                 type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
                 value={passwords.confirm}
                 onChange={setPassword("confirm")}
               />
@@ -400,7 +414,7 @@ export default function Profile({ themePref, onThemePref }) {
             <Message message={passwordMessage} />
 
             <button type="submit" className="button" disabled={passwordBusy}>
-              Change password
+              {passwordBusy ? "Updating…" : "Change password"}
             </button>
           </form>
         </section>

@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --configLoader native",
+    "build": "vite build --configLoader native",
     "lint": "eslint .",
+    "test": "node --test --experimental-test-isolation=none tests/*.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatDateTime } from "../api";
 import { useAuth } from "../auth.jsx";
+import Icon from "../components/Icon.jsx";
+import EmptyState from "../components/EmptyState.jsx";
+import StatCard, { dailyCounts } from "../StatCard.jsx";
 
 const REFRESH_MS = 5000;
 
@@ -51,13 +54,18 @@ function repliesByKind(invitations) {
 }
 
 export default function Dashboard() {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [invitations, setInvitations] = useState(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [filter, setFilter] = useState("all");
   const [updatedAt, setUpdatedAt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [query, setQuery] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const mutation = useRef({ busy: false, version: 0 });
 
   // Load once, then quietly refresh in the background so new replies appear by themselves.
   useEffect(() => {
@@ -65,11 +73,12 @@ export default function Dashboard() {
     let inFlight = false;
 
     async function load() {
-      if (inFlight) return;
+      if (inFlight || mutation.current.busy) return;
+      const version = mutation.current.version;
       inFlight = true;
       try {
         const data = await api("/api/invitations", { auth: true });
-        if (stopped) return;
+        if (stopped || version !== mutation.current.version) return;
         setInvitations(data);
         setError("");
         setUpdatedAt(new Date());
@@ -95,7 +104,7 @@ export default function Dashboard() {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", refreshIfVisible);
     };
-  }, [logout]);
+  }, [logout, refreshKey]);
 
   const selected =
     invitations?.find((inv) => inv.id === selectedId) ?? invitations?.[0];
@@ -112,6 +121,11 @@ export default function Dashboard() {
   }
 
   async function toggleOpen() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    mutation.current.busy = true;
+    mutation.current.version++;
     try {
       const result = await api(`/api/invitations/${selected.id}`, {
         method: "PATCH",
@@ -125,20 +139,28 @@ export default function Dashboard() {
       );
     } catch (err) {
       setError(err.message);
+    } finally {
+      mutation.current.busy = false;
+      setBusy(false);
     }
   }
 
   async function removeInvitation() {
-    const ok = window.confirm(
-      `Delete "${selected.title}" and all of its replies? This can't be undone.`
-    );
-    if (!ok) return;
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    mutation.current.busy = true;
+    mutation.current.version++;
     try {
       await api(`/api/invitations/${selected.id}`, { method: "DELETE", auth: true });
       setInvitations((list) => list.filter((inv) => inv.id !== selected.id));
       setSelectedId(null);
+      setConfirmDelete(false);
     } catch (err) {
       setError(err.message);
+    } finally {
+      mutation.current.busy = false;
+      setBusy(false);
     }
   }
 
@@ -162,13 +184,16 @@ export default function Dashboard() {
   const kinds = repliesByKind(invitations ?? []);
   const shown = rsvps
     .filter((r) => filter === "all" || (filter === "yes") === r.attending)
+    .filter((r) => r.guestName.toLowerCase().includes(query.trim().toLowerCase()))
     .reverse();
+  const allReplies = (invitations ?? []).flatMap((inv) => inv.rsvps);
 
   return (
     <>
       <div className="page-head">
         <div>
-          <h1>Dashboard</h1>
+          <p className="eyebrow"><Icon name="sparkle" size={15} />Your little gathering place</p>
+          <h1>Good to see you, {user.name.split(" ")[0]}.</h1>
           <p className="muted">
             {updatedAt
               ? `Live. Last updated ${updatedAt.toLocaleTimeString("en-US", {
@@ -176,26 +201,28 @@ export default function Dashboard() {
                   minute: "2-digit",
                   second: "2-digit",
                 })}`
-              : "See who's coming and where it's happening."}
+              : "A little overview of all the good times ahead."}
           </p>
         </div>
         <Link to="/new" className="button">
+          <Icon name="plus" size={18} />
           Create invitation
         </Link>
       </div>
 
       {error && (
         <p className="form-error" role="alert">
-          {error}
+          {error}{" "}<button className="link-button" onClick={() => setRefreshKey((key) => key + 1)}>Try again</button>
         </p>
       )}
 
-      {!invitations && !error && <p className="muted">Loading your invitations...</p>}
+      {!invitations && !error && <div className="card" role="status" aria-label="Loading your invitations"><p className="muted">Getting your plans together…</p><div className="skeleton" /><div className="skeleton" style={{ width: "60%" }} /></div>}
+
+      {invitations && <div className="stat-row"><StatCard icon="mail" label="Invitations made" value={invitations.length} chip={`${invitations.filter((inv) => inv.is_open).length} open for replies`} series={dailyCounts(allReplies)} /><StatCard icon="chat" label="Little replies" value={allReplies.length} chip="Every answer, all together" series={dailyCounts(allReplies)} /><StatCard icon="check" tone="good" label="People coming" value={allReplies.filter((reply) => reply.attending).length} chip="Good company on the way" series={dailyCounts(allReplies, (reply) => reply.attending)} /></div>}
 
       {invitations && invitations.length === 0 && (
         <div className="card">
-          <h2>No invitations yet</h2>
-          <p className="muted">Create one and share its link to start collecting replies.</p>
+          <EmptyState title="Every good time starts somewhere." description="A birthday, a dinner, or a just-because. Create your first invitation and bring your favorite people together." action="Make your first invitation" />
         </div>
       )}
 
@@ -211,6 +238,9 @@ export default function Dashboard() {
                 onClick={() => {
                   setSelectedId(inv.id);
                   setFilter("all");
+                  setConfirmDelete(false);
+                  setCopied(false);
+                  setQuery("");
                 }}
               >
                 {inv.title}
@@ -233,21 +263,25 @@ export default function Dashboard() {
             <div className="link-row">
               <code>{`${window.location.origin}/i/${selected.slug}`}</code>
               <button type="button" className="button small" onClick={copyLink}>
-                {copied ? "Copied" : "Copy link"}
+                <Icon name={copied ? "check" : "link"} size={14} /><span role="status">{copied ? "Copied!" : "Copy link"}</span>
               </button>
             </div>
             <div className="pills">
-              <button type="button" className="tab" onClick={toggleOpen}>
+              <Link className="tab" to={`/i/${selected.slug}`} target="_blank" rel="noreferrer">Preview invitation</Link>
+              <Link className="tab" to={`/invitations/${selected.id}/edit`}>Edit details</Link>
+              <button type="button" className="tab" onClick={toggleOpen} disabled={busy}>
                 {selected.is_open ? "Close invitation" : "Reopen invitation"}
               </button>
               <button
                 type="button"
                 className="tab"
                 style={{ color: "var(--danger)" }}
-                onClick={removeInvitation}
+                onClick={() => setConfirmDelete(true)}
+                disabled={busy}
               >
                 Delete
               </button>
+              {confirmDelete && <span className="confirm"><span>Delete this invitation and all replies?</span><button className="button small danger" disabled={busy} onClick={removeInvitation}>{busy ? "Deleting…" : "Yes, delete"}</button><button className="link-button" onClick={() => setConfirmDelete(false)} disabled={busy}>Keep it</button></span>}
             </div>
           </section>
 
@@ -409,6 +443,7 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                <div className="search-box" style={{ marginBottom: "1rem" }}><Icon name="search" size={17} /><input className="search-input" type="search" aria-label="Search guest replies" placeholder="Find someone on the guest list…" value={query} onChange={(e) => setQuery(e.target.value)} /></div>
                 {shown.length === 0 ? (
                   <p className="muted">
                     {rsvps.length === 0

@@ -1,11 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001";
-const TOKEN_KEY = "invitations-token";
+import { getToken, SESSION_EXPIRED } from "./session.js";
 
-export const getToken = () => localStorage.getItem(TOKEN_KEY);
-export const setToken = (token) => localStorage.setItem(TOKEN_KEY, token);
-export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
-
-export async function api(path, { method = "GET", body, auth = false } = {}) {
+const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:3001";
+export async function api(path, { method = "GET", body, auth = false, signal } = {}) {
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
   if (auth && getToken()) headers.Authorization = `Bearer ${getToken()}`;
@@ -16,13 +12,17 @@ export async function api(path, { method = "GET", body, auth = false } = {}) {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000),
     });
-  } catch {
-    throw new Error("Can't reach the server. Check that it's running.");
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (error.name === "TimeoutError") throw new Error("The server took too long to respond. Please try again.", { cause: error });
+    throw new Error("Can't reach the server. Check that it's running.", { cause: error });
   }
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (auth && res.status === 401) window.dispatchEvent(new Event(SESSION_EXPIRED));
     const err = new Error(data.error || "Something went wrong. Try again.");
     err.status = res.status;
     throw err;
