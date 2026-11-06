@@ -6,6 +6,7 @@ import bcrypt from "../server/node_modules/bcryptjs/index.js";
 import jwt from "../server/node_modules/jsonwebtoken/index.js";
 import { createApp } from "../server/app.js";
 import { migrate } from "../server/migrate.js";
+import { OWNER_ADMIN_MIGRATION } from "../server/migrations/20261106-owner-admin.js";
 
 const secret = "isolated-account-test-secret-never-used-in-production";
 const password = "A-long-test-password-42";
@@ -57,7 +58,7 @@ describe("Account administration and recovery with PostgreSQL", () => {
     baseUrl = `http://127.0.0.1:${server.address().port}`;
   });
   beforeEach(async () => {
-    await db.exec("TRUNCATE rsvps, invitations, users, account_rate_limits, admin_audit_log RESTART IDENTITY CASCADE");
+    await db.exec("TRUNCATE rsvps, invitations, users, account_rate_limits, admin_audit_log, app_data_migrations RESTART IDENTITY CASCADE");
     sent = []; mailFailure = false;
     users.admin = await addUser("Owner", "admin");
     users.member = await addUser("Member");
@@ -71,6 +72,56 @@ describe("Account administration and recovery with PostgreSQL", () => {
     await migrate(pool);
     const { rows } = await pool.query("SELECT COUNT(*)::int AS count FROM users");
     assert.equal(rows[0].count, 2);
+  });
+
+  test("deployment grants the existing owner admin access once without changing the password", async () => {
+    const owner = (await pool.query("INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING *",
+      ["Deployment owner", "christonambowang@gmail.com", hash])).rows[0];
+    await migrate(pool);
+    const promoted = (await pool.query("SELECT * FROM users WHERE id = $1", [owner.id])).rows[0];
+    assert.equal(promoted.role, "admin");
+    assert.equal(promoted.status, "active");
+    assert.equal(promoted.password_hash, hash);
+    assert.equal(promoted.token_version, 1);
+    assert.equal((await request("/api/me", { token: tokenFor(owner) })).status, 401);
+    const login = await request("/api/auth/login", { method: "POST", body: { email: owner.email, password } });
+    assert.equal(login.status, 200);
+    assert.equal(login.data.user.role, "admin");
+    assert.equal((await request("/api/admin/overview", { token: login.data.token })).status, 200);
+    await migrate(pool);
+    assert.equal((await pool.query("SELECT token_version FROM users WHERE id = $1", [owner.id])).rows[0].token_version, 1);
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS total FROM admin_audit_log WHERE target_email = $1", [owner.email])).rows[0].total, 1);
+    assert.equal((await pool.query("SELECT details FROM app_data_migrations WHERE key = $1", [OWNER_ADMIN_MIGRATION])).rows[0].details.outcome, "promoted");
+  });
+
+  test("deployment does not regrant owner access after an administrator later demotes or suspends it", async () => {
+    const owner = (await pool.query("INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING *",
+      ["Deployment owner", "christonambowang@gmail.com", hash])).rows[0];
+    await migrate(pool);
+    await pool.query("UPDATE users SET role = 'user', status = 'suspended' WHERE id = $1", [owner.id]);
+    await migrate(pool);
+    const saved = (await pool.query("SELECT role, status FROM users WHERE id = $1", [owner.id])).rows[0];
+    assert.equal(saved.role, "user");
+    assert.equal(saved.status, "suspended");
+  });
+
+  test("a missing owner is skipped permanently and a later signup never inherits admin access", async () => {
+    await migrate(pool);
+    assert.equal((await pool.query("SELECT details FROM app_data_migrations WHERE key = $1", [OWNER_ADMIN_MIGRATION])).rows[0].details.outcome, "skipped_missing_account");
+    const signup = await request("/api/auth/register", { method: "POST", body: { name: "Later signup", email: "christonambowang@gmail.com", password } });
+    assert.equal(signup.status, 201);
+    assert.equal(signup.data.user.role, "user");
+    await migrate(pool);
+    assert.equal((await request("/api/me", { token: signup.data.token })).data.role, "user");
+    assert.equal((await request("/api/admin/overview", { token: signup.data.token })).status, 403);
+  });
+
+  test("already-active administrators keep their sessions across the owner migration", async () => {
+    await pool.query("UPDATE users SET email = $1 WHERE id = $2", ["christonambowang@gmail.com", users.admin.id]);
+    const token = tokenFor(users.admin);
+    await migrate(pool);
+    assert.equal((await request("/api/admin/overview", { token })).status, 200);
+    assert.equal((await pool.query("SELECT COUNT(*)::int AS total FROM admin_audit_log")).rows[0].total, 0);
   });
 
   test("recovery explicitly reports unavailable email when SMTP is not configured", async () => {

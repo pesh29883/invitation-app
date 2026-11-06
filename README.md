@@ -42,6 +42,10 @@ npm.cmd run make-admin -- owner@example.com
 
 Sign in again and open **`/admin`** (or choose **Admin** in the navigation). The command promotes an existing account; public signup always creates an ordinary member. There is no default administrator password or public role-claim endpoint. Administrators can promote other members from the dashboard. Existing accounts remain members until explicitly promoted.
 
+Administrator roles belong to the database the API is using. Running `make-admin` against a local database does not update the hosted database. A one-time owner-authorized deployment migration grants the designated existing owner account administrator access in the database used by each deployment. It records completion, skips missing accounts permanently, preserves passwords, and never grants privileges to a later signup or reverses a later demotion. Other administrators still use the dashboard or the server command.
+
+Opening `/admin` checks the current role with the API. If access is missing or the server is unavailable, the page explains the problem and offers a fresh check or sign-in instead of redirecting silently to the dashboard.
+
 The dashboard includes account totals, name/email search, role/status filters, pagination, invitation counts, join/sign-in dates, account editing, suspension/reactivation, and password reset emails. Account changes and admin recovery requests are recorded in the latest-50 activity feed. Sensitive actions require the acting administrator's password. Self-suspension, self-demotion, and removal of the last active administrator are blocked, including concurrent changes.
 
 Suspension preserves account and invitation data, revokes all existing sessions, blocks sign-in, and hides the account's shared invitations and RSVP endpoints. Reactivation restores access to shared invitations, but the member must sign in again. Changing email or role also revokes existing sessions. Password changes retain the current session with a new token and sign out other sessions.

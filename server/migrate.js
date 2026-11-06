@@ -1,3 +1,5 @@
+import { enableExistingOwnerAdmin } from "./migrations/20261106-owner-admin.js";
+
 export async function transaction(pool, work) {
   const client = await pool.connect();
   try {
@@ -35,9 +37,13 @@ export async function migrate(pool) {
       id BIGSERIAL PRIMARY KEY, actor_email TEXT NOT NULL, target_email TEXT NOT NULL,
       action TEXT NOT NULL, details JSONB NOT NULL DEFAULT '{}', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`);
+    await client.query(`CREATE TABLE IF NOT EXISTS app_data_migrations (
+      key TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), details JSONB NOT NULL DEFAULT '{}'
+    )`);
     await client.query(`ALTER TABLE invitations
       ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION,
       ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION,
       ADD COLUMN IF NOT EXISTS is_open BOOLEAN NOT NULL DEFAULT true`);
+    await enableExistingOwnerAdmin(client);
   });
 }

@@ -21,6 +21,7 @@ import PasswordRecovery from "./pages/PasswordRecovery.jsx";
 import Brand from "./components/Brand.jsx";
 import Icon from "./components/Icon.jsx";
 import EmptyState from "./components/EmptyState.jsx";
+import AdminAccess from "./components/AdminAccess.jsx";
 
 const THEME_KEY = "invitations-theme"; // saved as "light" or "dark"; absent means "match my device"
 
@@ -117,8 +118,8 @@ function Protected({ children, admin = false }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) return <p className="muted" role="status">Checking your session…</p>;
-  if (user && admin && user.role !== "admin") return <Navigate to="/dashboard" replace />;
-  return user ? children : <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  return admin ? <AdminAccess>{children}</AdminAccess> : children;
 }
 
 export default function App() {
